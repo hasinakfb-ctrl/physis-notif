@@ -9,6 +9,14 @@ const config: CapacitorConfig = {
       'localhost'
     ],
     cleartext: true
+  },
+  plugins: {
+    CapacitorUpdater: {
+      autoUpdate: true,
+      // Optionnel mais recommandé : permet de ne pas bloquer le démarrage de l'app 
+      // si le réseau est trop lent pour chercher une mise à jour.
+      delay: 2000 
+    }
   }
 };
 

@@ -1,7 +1,7 @@
 {
   "name": "physis-notif",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,6 +14,7 @@
     "@capacitor/cli": "^8.4.1",
     "@capacitor/core": "^8.4.1",
     "@capacitor/push-notifications": "^8.1.1",
+    "@capgo/capacitor-updater": "^8.51.0",
     "onesignal-cordova-plugin": "^5.5.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"

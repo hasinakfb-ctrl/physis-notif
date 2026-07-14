@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { CapacitorUpdater } from '@capgo/capacitor-updater';
 import './App.css';
 
 // Déclaration pour éviter les erreurs TypeScript avec le plugin Cordova
@@ -16,16 +17,23 @@ export default function App() {
   const [error, setError] = useState<string>('');
 
   useEffect(() => {
-    // On attend que l'appareil soit prêt pour lancer OneSignal (méthode 100% native stable)
+    // 1. Notification OTA : On signale à Capgo que l'interface a démarré avec succès.
+    // Cela valide la mise à jour et empêche le rollback automatique.
+    CapacitorUpdater.notifyAppReady();
+
+    // 2. On attend que l'appareil soit prêt pour lancer OneSignal
     document.addEventListener('deviceready', initOneSignal, false);
 
     // Sécurité au cas où on est sur navigateur
-    setTimeout(() => {
+    const timeout = setTimeout(() => {
       if (status === "Initialisation...") {
         setStatus("Application démarrée (hors appareil mobile)");
       }
     }, 3000);
-  }, []);
+
+    // Nettoyage propre du useEffect
+    return () => clearTimeout(timeout);
+  }, [status]);
 
   function initOneSignal() {
     try {
@@ -41,7 +49,14 @@ export default function App() {
       // Initialisation avec ton ID OneSignal
       OneSignal.initialize("fa0ed4ae-dab4-4ef0-afd3-998a56673955");
 
-      // Écouteur en temps réel : dès que l'identifiant est généré ou change, on l'affiche !
+      /* 
+       * FUTURE ÉTAPE : Connexion Multi-utilisateurs
+       * Quand ton utilisateur se connectera (avec un email ou un pseudo),
+       * tu pourras lier son identité humaine à cet appareil comme ceci :
+       * OneSignal.login("email_ou_pseudo_utilisateur");
+       */
+
+      // Écouteur en temps réel : dès que l'identifiant est généré ou change, on l'affiche
       OneSignal.User.pushSubscription.addEventListener("change", (state: any) => {
         const newId = state.current?.id;
         if (newId) {
@@ -75,7 +90,7 @@ export default function App() {
 
   return (
     <div className="app-container">
-      <h1>Physis Notif 🚀</h1>
+      <h1>Physis Notif avec OTA fonctionnel 🚀</h1>
       
       <div className="status-box">
         <p><strong>Statut :</strong> {status}</p>
