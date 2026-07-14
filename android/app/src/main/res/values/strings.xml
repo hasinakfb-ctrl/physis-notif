@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">physis-notif</string>
+    <string name="title_activity_main">physis-notif</string>
+    <string name="package_name">com.physis.notif</string>
+    <string name="custom_url_scheme">com.physis.notif</string>
+</resources>
