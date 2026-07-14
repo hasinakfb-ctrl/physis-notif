@@ -40,7 +40,7 @@ export default function App() {
 
       // REMPLACE cette clé par ton identifiant OneSignal plus tard si tu veux, 
       // pour l'instant on initialise l'application avec une clé de test sécurisée.
-      OneSignal.initialize("COMPTE_DE_TEST_ONESIGNAL_KEY");
+      OneSignal.initialize("fa0ed4ae-dab4-4ef0-afd3-998a56673955");
 
       // Demande d'autorisation native (la vraie petite fenêtre Android standard)
       OneSignal.Notifications.requestPermission(true).then((accepted: boolean) => {
