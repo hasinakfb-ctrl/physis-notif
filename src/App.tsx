@@ -15,26 +15,61 @@ export default function App() {
   const [userId, setUserId] = useState<string>('');
   const [status, setStatus] = useState<string>("Initialisation...");
   const [error, setError] = useState<string>('');
+  const [otaStatus, setOtaStatus] = useState<string>("En attente de connexion OTA...");
 
   useEffect(() => {
-    // 1. Notification OTA : On signale à Capgo que l'interface a démarré avec succès.
-    // Cela valide la mise à jour et empêche le rollback automatique.
-    CapacitorUpdater.notifyAppReady();
+    // Variables pour stocker les références réelles des écouteurs Capacitor
+    let downloadHandle: any;
+    let updateAvailableHandle: any;
+    let updateFailedHandle: any;
 
-    // 2. On attend que l'appareil soit prêt pour lancer OneSignal
+    // 1. BLOC OTA (CAPGO) - Totalement asynchrone et sécurisé
+    const setupOta = async () => {
+      try {
+        await CapacitorUpdater.notifyAppReady();
+        setOtaStatus("Prêt pour l'OTA");
+      } catch (err: any) {
+        setOtaStatus(`Erreur OTA : ${err.message}`);
+      }
+
+      // On "await" chaque écouteur pour récupérer le "Handle" et pouvoir le supprimer proprement
+      downloadHandle = await CapacitorUpdater.addListener('download', (info: any) => {
+        setOtaStatus(`Téléchargement OTA : ${info.percent}%`);
+      });
+      updateAvailableHandle = await CapacitorUpdater.addListener('updateAvailable', (info: any) => {
+        setOtaStatus(`Mise à jour prête : ${info.version}`);
+      });
+      updateFailedHandle = await CapacitorUpdater.addListener('updateFailed', (info: any) => {
+        setOtaStatus(`Échec OTA : ${info.message}`);
+      });
+    };
+
+    setupOta();
+
+    // 2. BLOC ONESIGNAL
     document.addEventListener('deviceready', initOneSignal, false);
 
-    // Sécurité au cas où on est sur navigateur
+    // Sécurité au cas où on est sur navigateur (utilise une mise à jour d'état fonctionnelle)
     const timeout = setTimeout(() => {
-      if (status === "Initialisation...") {
-        setStatus("Application démarrée (hors appareil mobile)");
-      }
+      setStatus((prevStatus) => {
+        if (prevStatus === "Initialisation...") {
+          return "Application démarrée (hors appareil mobile)";
+        }
+        return prevStatus;
+      });
     }, 3000);
 
-    // Nettoyage propre du useEffect
-    return () => clearTimeout(timeout);
-  }, [status]);
+    // 3. NETTOYAGE PROPRE
+    return () => {
+      clearTimeout(timeout);
+      document.removeEventListener('deviceready', initOneSignal, false);
+      if (downloadHandle) downloadHandle.remove();
+      if (updateAvailableHandle) updateAvailableHandle.remove();
+      if (updateFailedHandle) updateFailedHandle.remove();
+    };
+  }, []); // <-- Le tableau vide garantit que ce code ne s'exécute qu'une seule fois au lancement !
 
+  // Fonction d'origine pour OneSignal
   function initOneSignal() {
     try {
       const OneSignal = window.plugins?.OneSignal;
@@ -49,14 +84,6 @@ export default function App() {
       // Initialisation avec ton ID OneSignal
       OneSignal.initialize("fa0ed4ae-dab4-4ef0-afd3-998a56673955");
 
-      /* 
-       * FUTURE ÉTAPE : Connexion Multi-utilisateurs
-       * Quand ton utilisateur se connectera (avec un email ou un pseudo),
-       * tu pourras lier son identité humaine à cet appareil comme ceci :
-       * OneSignal.login("email_ou_pseudo_utilisateur");
-       */
-
-      // Écouteur en temps réel : dès que l'identifiant est généré ou change, on l'affiche
       OneSignal.User.pushSubscription.addEventListener("change", (state: any) => {
         const newId = state.current?.id;
         if (newId) {
@@ -65,12 +92,10 @@ export default function App() {
         }
       });
 
-      // Demande d'autorisation standard
       OneSignal.Notifications.requestPermission(true).then((accepted: boolean) => {
         if (accepted) {
           setStatus("Autorisé ! En attente de l'ID serveur...");
           
-          // Essai de lecture immédiate au cas où il est déjà disponible
           const immediateId = OneSignal.User.pushSubscription.id;
           if (immediateId) {
             setUserId(immediateId);
@@ -90,10 +115,11 @@ export default function App() {
 
   return (
     <div className="app-container">
-      <h1>Physis 🚀</h1>
+      <h1>Physis Notif 🚀</h1>
       
       <div className="status-box">
         <p><strong>Statut :</strong> {status}</p>
+        <p><strong>OTA :</strong> {otaStatus}</p>
         {error && <p className="error-text">⚠️ {error}</p>}
       </div>
 
