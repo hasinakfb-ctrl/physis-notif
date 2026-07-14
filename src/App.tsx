@@ -1,101 +1,100 @@
-import { useEffect, useState } from 'react';
-import { PushNotifications } from '@capacitor/push-notifications';
-import type { Token } from '@capacitor/push-notifications';
+import React, { useState, useEffect } from 'react';
+import './App.css';
 
-function App() {
-  const [token, setToken] = useState<string>('Pas encore de token');
-  const [status, setStatus] = useState<string>("En attente d'autorisation...");
-  const [error, setError] = useState<string | null>(null);
+export default function App() {
+  const [token, setToken] = useState<string>('');
+  const [status, setStatus] = useState<string>("Attente d'autorisation...");
+  const [error, setError] = useState<string>('');
 
   useEffect(() => {
-    // Fonction pour initialiser les notifications push
-    const initPush = async () => {
-      try {
-        // 1. Demander la permission à l'utilisateur
-        let permStatus = await PushNotifications.checkPermissions();
+    // 1. On vérifie si le navigateur du téléphone supporte les notifications
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+      setError("Les notifications Web ne sont pas supportées sur cet appareil.");
+      setStatus("Erreur de compatibilité");
+      return;
+    }
 
-        if (permStatus.receive === 'prompt') {
-          permStatus = await PushNotifications.requestPermissions();
+    // 2. Demande d'autorisation standard (Zéro plugin natif)
+    Notification.requestPermission()
+      .then((permission) => {
+        if (permission === 'granted') {
+          setStatus("Autorisé ! Activation du service...");
+          setupServiceWorker();
+        } else {
+          setError("L'utilisateur a refusé les notifications.");
+          setStatus("Accès refusé");
         }
-
-        if (permStatus.receive !== 'granted') {
-          setStatus("Permission refusée par l'utilisateur.");
-          return;
-        }
-
-        setStatus("Permission accordée ! Enregistrement auprès de Google/Apple...");
-
-        // 2. S'enregistrer auprès du service de notifications (FCM/APNs)
-        await PushNotifications.register();
-
-        // 3. Écouter l'événement de succès de l'enregistrement (Récupération du Token)
-        PushNotifications.addListener('registration', (registrationToken: Token) => {
-          setToken(registrationToken.value);
-          setStatus("Appareil enregistré avec succès ! Ready.");
-          console.log('Push token:', registrationToken.value);
-        });
-
-        // 4. Écouter les erreurs d'enregistrement
-        PushNotifications.addListener('registrationError', (err: any) => {
-          setError(`Erreur d'enregistrement : ${JSON.stringify(err)}`);
-        });
-
-        // 5. Optionnel : Écouter la notification quand l'app est ouverte au premier plan
-        PushNotifications.addListener('pushNotificationReceived', (notification) => {
-          alert(`Notification reçue en direct : ${notification.title} - ${notification.body}`);
-        });
-
-      } catch (e: any) {
-        setError(`Erreur système : ${e.message || e}`);
-      }
-    };
-
-    initPush();
+      })
+      .catch((err) => {
+        setError(err.message || "Erreur lors de la demande.");
+        setStatus("Échec");
+      });
   }, []);
 
-  return (
-    <div style={{
-      padding: '24px',
-      fontFamily: 'sans-serif',
-      backgroundColor: '#121212',
-      color: '#ffffff',
-      minHeight: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'center',
-      alignItems: 'center',
-      textAlign: 'center'
-    }}>
-      <h1 style={{ color: '#4CAF50', marginBottom: '8px' }}>Physis Node Link</h1>
-      <p style={{ color: '#aaa', fontSize: '14px' }}>Statut : <strong>{status}</strong></p>
+  // 3. Enregistrement du Service Worker pour générer le Token d'écoute
+  async function setupServiceWorker() {
+    try {
+      let registration = await navigator.serviceWorker.getRegistration();
       
-      {error && (
-        <div style={{ backgroundColor: '#ff5252', padding: '12px', borderRadius: '6px', margin: '16px 0', fontSize: '14px' }}>
-          {error}
+      if (!registration) {
+        registration = await navigator.serviceWorker.register('/sw.js');
+      }
+
+      // On récupère ou crée l'abonnement push universel
+      let subscription = await registration.pushManager.getSubscription();
+      
+      if (!subscription) {
+        // Clé publique factice pour l'initialisation de l'interface
+        const dummyVapidKey = "BEl62Ohaywtts9nyduOJwKsCWY9Yfbe9YpAnv2_XzO1W60bEw89_R7AnM7SwD649aiG5zJgSbtpydvR5LhE4kG8";
+        
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(dummyVapidKey)
+        });
+      }
+
+      // On affiche la chaîne de caractères (Token/Endpoint) à l'écran
+      setToken(JSON.stringify(subscription));
+      setStatus("Application prête à recevoir !");
+
+    } catch (err: any) {
+      setError(`Erreur Service Worker: ${err.message || err}`);
+      setStatus("Erreur d'initialisation");
+    }
+  }
+
+  // Utilitaire pour convertir la clé de sécurité
+  function urlBase64ToUint8Array(base64String: string) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  }
+
+  return (
+    <div className="app-container">
+      <h1>Physis Notif 🚀</h1>
+      
+      <div className="status-box">
+        <p><strong>Statut :</strong> {status}</p>
+        {error && <p className="error-text">⚠️ {error}</p>}
+      </div>
+
+      {token && (
+        <div className="token-box">
+          <h2>Ton identifiant unique (Token) :</h2>
+          <textarea 
+            readOnly 
+            value={token} 
+            onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+          />
+          <small>Reste appuyé pour tout copier</small>
         </div>
       )}
-
-      <div style={{
-        marginTop: '24px',
-        padding: '16px',
-        backgroundColor: '#1e1e1e',
-        borderRadius: '8px',
-        border: '1px solid #333',
-        maxWidth: '90%',
-        wordBreak: 'break-all'
-      }}>
-        <p style={{ margin: '0 0 8px 0', fontSize: '12px', color: '#888', textTransform: 'uppercase', letterSpacing: '1px' }}>
-          Device Push Token
-        </p>
-        <code style={{ fontSize: '14px', color: '#00E676', fontFamily: 'monospace' }}>
-          {token}
-        </code>
-      </div>
-      <p style={{ marginTop: '16px', fontSize: '12px', color: '#666' }}>
-        Copie ce token pour l'envoyer depuis ton script admin backend.
-      </p>
     </div>
   );
 }
-
-export default App;
