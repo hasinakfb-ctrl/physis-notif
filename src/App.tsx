@@ -38,31 +38,28 @@ export default function App() {
 
       setStatus("Configuration des notifications...");
 
-      // REMPLACE cette clé par ton identifiant OneSignal plus tard si tu veux, 
-      // pour l'instant on initialise l'application avec une clé de test sécurisée.
+      // Initialisation avec ton ID OneSignal
       OneSignal.initialize("fa0ed4ae-dab4-4ef0-afd3-998a56673955");
 
-      // Demande d'autorisation native (la vraie petite fenêtre Android standard)
+      // Écouteur en temps réel : dès que l'identifiant est généré ou change, on l'affiche !
+      OneSignal.User.pushSubscription.addEventListener("change", (state: any) => {
+        const newId = state.current?.id;
+        if (newId) {
+          setUserId(newId);
+          setStatus("Prêt à recevoir des notifications !");
+        }
+      });
+
+      // Demande d'autorisation standard
       OneSignal.Notifications.requestPermission(true).then((accepted: boolean) => {
         if (accepted) {
-          setStatus("Autorisé ! Récupération de l'identifiant...");
+          setStatus("Autorisé ! En attente de l'ID serveur...");
           
-          // Récupération de l'ID unique de l'appareil
-          const deviceState = OneSignal.User.pushSubscription.getid();
-          if (deviceState) {
-            setUserId(deviceState);
+          // Essai de lecture immédiate au cas où il est déjà disponible
+          const immediateId = OneSignal.User.pushSubscription.id;
+          if (immediateId) {
+            setUserId(immediateId);
             setStatus("Prêt à recevoir des notifications !");
-          } else {
-            // Parfois l'ID met quelques secondes à être généré par les serveurs
-            setTimeout(() => {
-              const retryId = OneSignal.User.pushSubscription.getid();
-              if (retryId) {
-                setUserId(retryId);
-                setStatus("Prêt à recevoir des notifications !");
-              } else {
-                setStatus("Connecté (Attente de l'ID du serveur)");
-              }
-            }, 2000);
           }
         } else {
           setError("L'autorisation de notification a été refusée.");
