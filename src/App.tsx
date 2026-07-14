@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { PushNotifications, Token } from '@capacitor/push-notifications';
+import { PushNotifications } from '@capacitor/push-notifications';
+import type { Token } from '@capacitor/push-notifications';
 
 function App() {
   const [token, setToken] = useState<string>('Pas encore de token');
