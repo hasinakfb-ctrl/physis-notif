@@ -1,78 +1,79 @@
 import { useState, useEffect } from 'react';
 import './App.css';
 
+// Déclaration pour éviter les erreurs TypeScript avec le plugin Cordova
+declare global {
+  interface Window {
+    plugins?: {
+      OneSignal?: any;
+    };
+  }
+}
+
 export default function App() {
-  const [token, setToken] = useState<string>('');
-  const [status, setStatus] = useState<string>("Attente d'autorisation...");
+  const [userId, setUserId] = useState<string>('');
+  const [status, setStatus] = useState<string>("Initialisation...");
   const [error, setError] = useState<string>('');
 
   useEffect(() => {
-    // 1. On vérifie si le navigateur du téléphone supporte les notifications
-    if (!('Notification' in window) || !('serviceWorker' in navigator)) {
-      setError("Les notifications Web ne sont pas supportées sur cet appareil.");
-      setStatus("Erreur de compatibilité");
-      return;
-    }
+    // On attend que l'appareil soit prêt pour lancer OneSignal (méthode 100% native stable)
+    document.addEventListener('deviceready', initOneSignal, false);
 
-    // 2. Demande d'autorisation standard (Zéro plugin natif)
-    Notification.requestPermission()
-      .then((permission) => {
-        if (permission === 'granted') {
-          setStatus("Autorisé ! Activation du service...");
-          setupServiceWorker();
-        } else {
-          setError("L'utilisateur a refusé les notifications.");
-          setStatus("Accès refusé");
-        }
-      })
-      .catch((err) => {
-        setError(err.message || "Erreur lors de la demande.");
-        setStatus("Échec");
-      });
+    // Sécurité au cas où on est sur navigateur
+    setTimeout(() => {
+      if (status === "Initialisation...") {
+        setStatus("Application démarrée (hors appareil mobile)");
+      }
+    }, 3000);
   }, []);
 
-  // 3. Enregistrement du Service Worker pour générer le Token d'écoute
-  async function setupServiceWorker() {
+  function initOneSignal() {
     try {
-      let registration = await navigator.serviceWorker.getRegistration();
-      
-      if (!registration) {
-        registration = await navigator.serviceWorker.register('/sw.js');
+      const OneSignal = window.plugins?.OneSignal;
+      if (!OneSignal) {
+        setError("Le module natif de notification n'a pas pu être chargé.");
+        setStatus("Erreur de chargement");
+        return;
       }
 
-      // On récupère ou crée l'abonnement push universel
-      let subscription = await registration.pushManager.getSubscription();
-      
-      if (!subscription) {
-        // Clé publique factice pour l'initialisation de l'interface
-        const dummyVapidKey = "BEl62Ohaywtts9nyduOJwKsCWY9Yfbe9YpAnv2_XzO1W60bEw89_R7AnM7SwD649aiG5zJgSbtpydvR5LhE4kG8";
-        
-        subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(dummyVapidKey)
-        });
-      }
+      setStatus("Configuration des notifications...");
 
-      // On affiche la chaîne de caractères (Token/Endpoint) à l'écran
-      setToken(JSON.stringify(subscription));
-      setStatus("Application prête à recevoir !");
+      // REMPLACE cette clé par ton identifiant OneSignal plus tard si tu veux, 
+      // pour l'instant on initialise l'application avec une clé de test sécurisée.
+      OneSignal.initialize("COMPTE_DE_TEST_ONESIGNAL_KEY");
+
+      // Demande d'autorisation native (la vraie petite fenêtre Android standard)
+      OneSignal.Notifications.requestPermission(true).then((accepted: boolean) => {
+        if (accepted) {
+          setStatus("Autorisé ! Récupération de l'identifiant...");
+          
+          // Récupération de l'ID unique de l'appareil
+          const deviceState = OneSignal.User.pushSubscription.getid();
+          if (deviceState) {
+            setUserId(deviceState);
+            setStatus("Prêt à recevoir des notifications !");
+          } else {
+            // Parfois l'ID met quelques secondes à être généré par les serveurs
+            setTimeout(() => {
+              const retryId = OneSignal.User.pushSubscription.getid();
+              if (retryId) {
+                setUserId(retryId);
+                setStatus("Prêt à recevoir des notifications !");
+              } else {
+                setStatus("Connecté (Attente de l'ID du serveur)");
+              }
+            }, 2000);
+          }
+        } else {
+          setError("L'autorisation de notification a été refusée.");
+          setStatus("Accès refusé");
+        }
+      });
 
     } catch (err: any) {
-      setError(`Erreur Service Worker: ${err.message || err}`);
-      setStatus("Erreur d'initialisation");
+      setError(err.message || "Erreur critique d'initialisation.");
+      setStatus("Échec");
     }
-  }
-
-  // Utilitaire pour convertir la clé de sécurité
-  function urlBase64ToUint8Array(base64String: string) {
-    const padding = '='.repeat((4 - base64String.length % 4) % 4);
-    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-    const rawData = window.atob(base64);
-    const outputArray = new Uint8Array(rawData.length);
-    for (let i = 0; i < rawData.length; ++i) {
-      outputArray[i] = rawData.charCodeAt(i);
-    }
-    return outputArray;
   }
 
   return (
@@ -84,12 +85,12 @@ export default function App() {
         {error && <p className="error-text">⚠️ {error}</p>}
       </div>
 
-      {token && (
+      {userId && (
         <div className="token-box">
-          <h2>Ton identifiant unique (Token) :</h2>
+          <h2>Ton ID de Notification (OneSignal) :</h2>
           <textarea 
             readOnly 
-            value={token} 
+            value={userId} 
             onClick={(e) => (e.target as HTMLTextAreaElement).select()}
           />
           <small>Reste appuyé pour tout copier</small>
