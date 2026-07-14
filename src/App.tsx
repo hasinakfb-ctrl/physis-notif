@@ -90,7 +90,7 @@ export default function App() {
 
   return (
     <div className="app-container">
-      <h1>Physis Notif avec OTA fonctionnel 🚀</h1>
+      <h1>Physis 🚀</h1>
       
       <div className="status-box">
         <p><strong>Statut :</strong> {status}</p>

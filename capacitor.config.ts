@@ -1,4 +1,6 @@
 import type { CapacitorConfig } from '@capacitor/cli';
+// On importe le package.json pour récupérer dynamiquement la version de l'app
+import pkg from './package.json';
 
 const config: CapacitorConfig = {
   appId: 'com.physis.notif',
@@ -13,8 +15,10 @@ const config: CapacitorConfig = {
   plugins: {
     CapacitorUpdater: {
       autoUpdate: true,
-      // Optionnel mais recommandé : permet de ne pas bloquer le démarrage de l'app 
-      // si le réseau est trop lent pour chercher une mise à jour.
+      // Indique à Capgo la version de base de l'application native (ex: "1.0.0")
+      version: pkg.version,
+      // Force l'application à écouter le canal où tu as uploadé ton bundle
+      defaultChannel: 'production',
       delay: 2000 
     }
   }
